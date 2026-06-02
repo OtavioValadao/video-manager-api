@@ -12,3 +12,4 @@ data:
   COGNITO_CLIENT_ID: "3u4evh79qeooni2brquto9ufgr"
   REDIS_URL: "redis://dev-redis.qze3qy.0001.use1.cache.amazonaws.com:6379"
   CORS_ORIGINS: "https://d2svhtmrfkuztr.cloudfront.net,https://d1u10i8c416gdg.cloudfront.net"
+  DB_SYNCHRONIZE: "true"
