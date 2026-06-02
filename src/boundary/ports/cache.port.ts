@@ -1,5 +1,7 @@
+export const CACHE_PORT = Symbol("CACHE_PORT");
+
 export interface ICachePort {
-    set(key: string, value: unknown, ttlSeconds: number): Promise<void>;
-    get(key: string): Promise<unknown>;
-    delete(key: string): Promise<void>;
+  setJson<T>(key: string, value: T, ttlSeconds: number): Promise<void>;
+  getJson<T>(key: string): Promise<T | null>;
+  delete(key: string): Promise<void>;
 }

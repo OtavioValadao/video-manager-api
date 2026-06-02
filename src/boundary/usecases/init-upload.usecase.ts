@@ -1,75 +1,65 @@
 import { randomUUID } from "crypto";
 import { ErrorCodes } from "src/core/domain/constants/error-codes.constants";
 import { BusinessException } from "src/core/domain/exceptions/business.exception";
-import { VideoStatus } from "src/core/domain/video/video-status.domain";
-import { Video } from "src/core/domain/video/video.domain";
-import { InitUploadResponseDto } from "../dtos/init-upload-response.dto";
-import { InitUploadDto } from "../dtos/init-upload.dto";
-import { ICachePort } from "../ports/cache.port";
-import { ILoggerPort } from "../ports/logger.port";
-import { IStoragePort } from "../ports/storage.port";
-import { IVideoRepositoryPort } from "../ports/video-repository.port";
+import type { UploadSessionState } from "src/core/domain/upload-session";
+import { Video, VideoStatus } from "src/core/domain/video.domain";
+import { InitUploadDto } from "src/boundary/dtos/init-upload.dto";
+import type { ICachePort } from "src/boundary/ports/cache.port";
+import type { ILoggerPort } from "src/boundary/ports/logger.port";
+import type { IStoragePort } from "src/boundary/ports/storage.port";
+import type { IUserRepositoryPort } from "src/boundary/ports/user-repository.port";
+import type { IVideoRepositoryPort } from "src/boundary/ports/video-repository.port";
+import { uploadSessionCacheKey } from "src/boundary/upload-cache-key";
 
+const UPLOAD_TTL_SECONDS = 60 * 60 * 24;
 
 export class InitUploadUsecase {
+  constructor(
+    private readonly storagePort: IStoragePort,
+    private readonly videoRepository: IVideoRepositoryPort,
+    private readonly userRepository: IUserRepositoryPort,
+    private readonly cachePort: ICachePort,
+    private readonly logger: ILoggerPort,
+  ) {}
 
-    constructor(
-        private readonly storagePort: IStoragePort,
-        private readonly videoRepository: IVideoRepositoryPort,
-        private readonly cachePort: ICachePort,
-        private readonly logger: ILoggerPort,
-    ) { }
+  async execute(
+    dto: InitUploadDto,
+    userId: string,
+    userEmail: string,
+  ): Promise<{ videoId: string; uploadId: string }> {
+    this.logger.log("Iniciando upload multipart", { userId });
 
-    async execute(dto: InitUploadDto): Promise<InitUploadResponseDto> {
-        this.logger.log("Iniciando upload", { userId: dto.userId });
+    await this.userRepository.ensureExists(userId, userEmail);
 
-        // 1 — gera o videoId
-        const videoId = randomUUID()
+    const videoId = randomUUID();
+    const s3Key = `temp/videos/${userId}/${videoId}/${dto.nomeArquivo}`;
 
-        // 2 — monta o path no S3
-        const s3Key = `temp/videos/${dto.userId}/${videoId}/${dto.nomeArquivo}`
+    const uploadId = await this.storagePort.initMultipartUpload(s3Key, dto.contentType).catch((error: unknown) => {
+      this.logger.error("Falha ao iniciar multipart no S3", error);
+      throw new BusinessException("Falha ao iniciar upload", ErrorCodes.STORAGE_INIT_FAILED);
+    });
 
-        // 3 — inicia multipart no S3 (exceção: interceptor captura e loga)
-        const uploadId = await this.storagePort
-            .initMultipartUpload(s3Key, dto.contentType)
-            .catch((error: unknown) => {
-                this.logger.error("Falha no storage", error);
-                throw new BusinessException(
-                    "Falha ao iniciar upload",
-                    ErrorCodes.STORAGE_INIT_FAILED,
-                );
-            })
+    const video = new Video(videoId, userId, dto.nomeArquivo, dto.tamanhoArquivo, VideoStatus.PENDING, s3Key);
 
-        // 4 — cria a entidade Video
-        const video = new Video(
-            videoId,
-            dto.userId,
-            dto.nomeArquivo,
-            dto.tamanhoArquivo,
-            VideoStatus.PENDING,
-            s3Key,
-        )
+    await this.videoRepository.save(video).catch((error: unknown) => {
+      this.logger.error("Falha ao persistir vídeo", error);
+      throw new BusinessException("Falha ao registrar vídeo", ErrorCodes.VIDEO_SAVE_FAILED);
+    });
 
-        // 5 — salva no PostgreSQL
-        await this.videoRepository.save(video)
+    const cacheKey = uploadSessionCacheKey(userId, videoId);
+    const session: UploadSessionState = {
+      uploadId,
+      totalChunks: dto.totalChunks,
+      chunksRecebidos: [],
+      nomeArquivo: dto.nomeArquivo,
+      s3Key,
+    };
 
-        // 6 — salva no Redis
-        const cacheKey = `upload:${dto.userId}:${videoId}`
-        await this.cachePort.set(
-            cacheKey,
-            {
-                uploadId,
-                totalChunks: dto.totalChunks,
-                chunksRecebidos: [],
-                nomeArquivo: dto.nomeArquivo,
-                s3Key,
-            },
-            60 * 60 * 24, // TTL 24h
-        )
+    await this.cachePort.setJson(cacheKey, session, UPLOAD_TTL_SECONDS).catch((error: unknown) => {
+      this.logger.error("Falha ao gravar sessão no Redis", error);
+      throw new BusinessException("Falha ao registrar sessão de upload", ErrorCodes.CACHE_SET_FAILED);
+    });
 
-        // 7 — retorna para o front
-        return { videoId, uploadId }
-
-    }
-
+    return { videoId, uploadId };
+  }
 }
