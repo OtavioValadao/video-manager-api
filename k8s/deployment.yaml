@@ -13,6 +13,8 @@ spec:
       labels:
         app: video-manager-api
     spec:
+      serviceAccountName: video-processor-sa
+      securityContext: {}
       containers:
         - name: video-manager-api
           image: 473688631666.dkr.ecr.us-east-1.amazonaws.com/dev-video-manager-api:latest
@@ -34,11 +36,13 @@ spec:
             httpGet:
               path: /health
               port: 3000
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 10
+            failureThreshold: 5   
           readinessProbe:
             httpGet:
               path: /health
               port: 3000
-            initialDelaySeconds: 15
+            initialDelaySeconds: 30
             periodSeconds: 5
+            failureThreshold: 5   

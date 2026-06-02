@@ -1,0 +1,12 @@
+  apiVersion: vpcresources.k8s.aws/v1beta1
+kind: SecurityGroupPolicy
+metadata:
+  name: video-manager-api-sgp
+  namespace: video-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: video-manager-api
+  securityGroups:
+    groupIds:
+      - sg-04d4c52c7efc8ea54
