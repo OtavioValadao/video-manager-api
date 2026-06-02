@@ -48,19 +48,19 @@ jobs:
             --name dev-video-cluster \
             --region us-east-1
 
-            - name: Apply Kubernetes manifests
-            run: |
-              kubectl apply -f k8s/namespace.yaml
-              kubectl apply -f k8s/configmap.yaml
-              kubectl apply -f k8s/deployment.yaml
-              kubectl apply -f k8s/service.yaml
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
 
-          - name: Cria Kubernetes Secret
-            run: |
-              kubectl create secret generic video-manager-api-secrets \
-                --namespace=video-platform \
-                --from-literal=DATABASE_URL=postgresql://${{ secrets.DB_USERNAME }}:${{ secrets.DB_PASSWORD }}@dev-video-postgres.ccrakaw6cjoa.us-east-1.rds.amazonaws.com:5432/videoplatform \
-                --dry-run=client -o yaml | kubectl apply -f -
+      - name: Cria Kubernetes Secret
+        run: |
+          kubectl create secret generic video-manager-api-secrets \
+            --namespace=video-platform \
+            --from-literal=DATABASE_URL=postgresql://${{ secrets.DB_USERNAME }}:${{ secrets.DB_PASSWORD }}@dev-video-postgres.ccrakaw6cjoa.us-east-1.rds.amazonaws.com:5432/videoplatform \
+            --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Update imagem no deployment
         env:
