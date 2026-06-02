@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: video-manager-api-config
+  namespace: video-platform
+data:
+  AWS_REGION: "us-east-1"
+  AWS_BUCKET_NAME: "video-platform-dev-storage-473688631666"
+  AWS_SQS_VIDEO_UPLOAD_URL: "https://sqs.us-east-1.amazonaws.com/473688631666/vp-dev-video-upload"
+  COGNITO_REGION: "us-east-1"
+  COGNITO_USER_POOL_ID: "us-east-1_gReTo6orn"
+  COGNITO_CLIENT_ID: "3u4evh79qeooni2brquto9ufgr"
+  REDIS_URL: "redis://dev-redis.qze3qy.0001.use1.cache.amazonaws.com:6379"
